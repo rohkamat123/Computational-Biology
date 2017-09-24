@@ -1,0 +1,182 @@
+```{r global_options, include=FALSE}
+library(knitr)
+opts_chunk$set(fig.align="center", fig.height=4, fig.width=5)
+library(ggplot2)
+theme_set(theme_bw(base_size=12))
+library(dplyr)
+library(tidyr)
+library(grid)
+library(SDSRegressionR)
+```
+## Project 2 
+Rohit Kamat rgk359
+
+For the project, I worked on a dataset collected by John Holcomb from the North Carolina State Center for Health and Environmental Statistics. This dataset contains 1409 birth records from North Carolina in 2001. The goal for this project was to analyze the births dataset using several statistical approaches I have learned, in two parts.
+
+ 
+
+```{r}
+NCbirths <- read.csv("http://wilkelab.org/classes/SDS348/data_sets/NCbirths.csv")
+
+train_fraction <- 0.8 # fraction of data for training purposes
+set.seed(123)  # set the seed to make your partition reproductible
+train_size <- floor(train_fraction * nrow(NCbirths)) # number of observations in training set
+train_indices <- sample(1:nrow(NCbirths), size = train_size)
+
+train_data <- NCbirths[train_indices, ] # get training data
+test_data <- NCbirths[-train_indices, ] # get test data
+
+head(NCbirths)
+```
+
+The column contents are as follows:
+
++ **Plural**: 1=single birth, 2=twins, 3=triplets.
++ **Sex**: Sex of the baby 1=male 2=female.
++ **MomAge**: Mother's age (in years).
++ **Weeks**: Completed weeks of gestation.
++ **Gained**: Weight gained during pregnancy (in pounds).
++ **BirthWeightGm**: Birth weight in grams.
++ **Low**: Indicator for low birth weight, 1=2500 grams or less, 0=otherwise.
++ **Premie**: Indicator for premature birth, 1=36 weeks or sooner, 0=otherwise.
++ **Marital**: Marital status: 0=married or 1=not married.
+
+**Part 1**. I have divided the dataset, which consists of observations from 1409 individuals, into a training and a test data set. I fit a logistic regression model to predict marital status on the training data set.
+
+Using the final model, I predict the outcome on the test data set, plot, and discuss my results. 
+**Part 2 (60 points)**. I created two question that I solved using logistic modeling and liner regression model. First question was to determine if premature babies tend to have lower birthweight than non-premature babies. My second question was whether the weight of the mother gained during pregnancny,the sex of the baby, whether the baby is premature or not and weeks of gestation are statistically significant predictors in determining the weight of a baby.
+
+
+
+Project responses should be entered below.
+
+***  
+
+```{r}
+# This R code chunk contains the calc_ROC function.
+calc_ROC <- function(probabilities, known_truth, model.name=NULL)
+  {
+  outcome <- as.numeric(factor(known_truth))-1
+  pos <- sum(outcome) # total known positives
+  neg <- sum(1-outcome) # total known negatives
+  pos_probs <- outcome*probabilities # probabilities for known positives
+  neg_probs <- (1-outcome)*probabilities # probabilities for known negatives
+  true_pos <- sapply(probabilities,
+                     function(x) sum(pos_probs>=x)/pos) # true pos. rate
+  false_pos <- sapply(probabilities,
+                     function(x) sum(neg_probs>=x)/neg)
+  if (is.null(model.name))
+    result <- data.frame(true_pos, false_pos)
+  else
+    result <- data.frame(true_pos, false_pos, model.name)
+  result %>% arrange(false_pos, true_pos)
+  }
+```
+
+**Part 1**
+
+```{r}
+# Do a logisitic regression model of the dataset, the significant predictors were mother's age and birth weight in grams
+glm.out <- glm(Marital ~ MomAge + BirthWeightGm + Plural + Sex + Weeks + Gained + Low + Premie + Smoke , train_data, family=binomial)
+summary(glm.out)
+
+glm.out <- glm(Marital ~ MomAge + BirthWeightGm + Plural + Weeks + Gained + Low + Premie + Smoke , train_data, family=binomial)
+summary(glm.out)
+
+glm.out <- glm(Marital ~ MomAge + BirthWeightGm + Plural + Gained + Low + Premie + Smoke , train_data, family=binomial)
+summary(glm.out)
+
+glm.out <- glm(Marital ~ MomAge + BirthWeightGm + Plural + Gained + Premie + Smoke , train_data, family=binomial)
+summary(glm.out)
+
+glm.out <- glm(Marital ~ MomAge + BirthWeightGm + Plural + Premie + Smoke , train_data, family=binomial)
+summary(glm.out)
+
+glm.out <- glm(Marital ~ MomAge + BirthWeightGm + Premie + Smoke , train_data, family=binomial)
+summary(glm.out)
+
+glm.out <- glm(Marital ~ MomAge + BirthWeightGm + Smoke, train_data, family=binomial)
+summary(glm.out)
+
+#Using the final model predict the outcome on the test data set
+#Predict the outcome on the Train Data Set using the calc_ROC function
+test_prob <- predict(glm.out, test_data, type="response") 
+ROC1 <- calc_ROC(probabilities=glm.out$fitted.values, 
+                 known_truth=train_data$Marital,      
+                 model.name="Train Data")
+#Predict the outcome on the Test Data Set using the calc_Roc function
+ROC2 <- calc_ROC(probabilities=test_prob, 
+                 known_truth=test_data$Marital,     
+                 model.name="Test Data")
+ROC_all <-rbind(ROC1, ROC2)
+#Perform the ggPlot
+ggplot(ROC_all, aes(x=false_pos, y=true_pos, color=model.name)) + geom_line() 
+  
+
+#Find the AUC of both Test Data and Train Data
+ROC_all %>% group_by(model.name) %>% 
+  mutate(delta=false_pos-lag(false_pos)) %>%
+  summarize(AUC=sum(delta*true_pos, na.rm=T)) %>%
+  arrange(desc(AUC))
+
+#Plot of the fitted probability of marital status as a function of the predictors, colored by marital status, on the test data
+test_pred <- predict(glm.out, test_data )
+log_data <- data.frame(predictor=test_pred, prob=test_prob, Marital=test_data$Marital)
+ggplot(log_data, aes(x=predictor, y=prob,color= factor(Marital))) + geom_point()  
+
+
+```
+The level of significance that I choose for the regression model 95%. The final model uses two predictors MomAge and BirthWeightGm. Then I performed a plot for the two ROC curves of both the train data and test data. Best on the area under the curve (AUC), the train data has .81 compared to test data which is .77. Therefore my final predictors of MomAge and BirthWeightGm both provided a good fit in the train data and test data set. Then a fitted probability plot was also made to be able to predict the outcome of marital status based on the predictors of mom's age and birth weight. Based on the plot, there was not a seperation of marital status based on the predictor value. Therefore based on the data it would be hard to infer, based on the age of the mother and birthweight of the baby, if the mother is married or not.
+
+<br><br><br>
+
+**Part 2**
+
+Are premature babies tend to have lower birthweight than non-premature babies? 
+```{r}
+#Do a Logistic Regression Model, BirthWeightGm as the independent variable and Premie as the dependent variable
+glm3.out <- glm(Premie ~ BirthWeightGm , data= NCbirths, family=binomial)
+summary(glm3.out)
+#Plot an ROC Curve
+Birth_ROC <- calc_ROC(probabilities=glm3.out$fitted.values, 
+                 known_truth=NCbirths$Premie,      
+                 model.name="NCBirths")
+ggplot(Birth_ROC, aes(x=false_pos, y=true_pos)) +
+  geom_line(data=Birth_ROC, aes(color=model.name))
+
+##Find the AUC of the ROC Curve
+Birth_ROC %>% group_by(model.name) %>% 
+  mutate(delta=false_pos-lag(false_pos)) %>%
+  summarize(AUC=sum(delta*true_pos, na.rm=T)) %>%
+  arrange(desc(AUC))
+
+
+```
+Based on the summary of the logistic model, an increase of one gram of birthweight results in the log odds of a premature baby decreases by .002 with a p-value less than 0.05. An ROC curve was then preformed to determine how well birthweight is able to predict if a baby is premature or not. The ROC curve showed a plot like the model's predictions were good with an Area Under The Curve equal to .848. From the model as well as the ROC curve I conclude that based on the data premature babies tend to have lower birthweight than non-premature babies.
+
+<br> 
+
+
+Is the weight of the mother gained during pregnancny,the sex of the baby, whether the baby is premature or not and weeks of gestation statistically significant predictors in determining the weight of a baby?
+```{r}
+# Perform a linear model to find if the predictors are statistically significant in determining the amount of the weight of the baby.
+
+NCbirths_lm <- lm(BirthWeightGm ~ Gained + Sex + Premie + Weeks , NCbirths)
+summary(NCbirths_lm)
+
+#Perform The Plots of Each of the Variable
+ggplot(NCbirths, aes(x=Gained, y=BirthWeightGm, color=factor(Sex), shape= factor(Premie))) + geom_point()
+ggplot(NCbirths, aes(x=Weeks, y=BirthWeightGm, color=factor(Sex), shape= factor(Premie))) + geom_point()    
+
+
+
+```
+To answer this question a multiple linear regression was performed to see what predictors significantly determine the weight of the baby. From the model the amount of weight that a mother has is a significant predictor of the birth weight of the baby with p<.05. The sex of the baby was a significant predictor in determining the birth weight of the baby with p<.05. Whether the baby was premature was a statistically significant predictor in determining the weight of the baby with a p<.05.The amount of weeks of gestation was a significant predictor in determining the weight of the baby with a p <.05. 
+
+I performed two graphs: the linear relationship between the amount of weight a mother gains and the birthweight of a baby with categorical predictors of sex and premature.
+Based on the first graph there seems to be a moderate positive linear relationship between the gain weight of mother and the birthweight of the baby. From the graph the sex of the baby did not have an significant impact on the weight of the baby if the mother gained weight, but premature babies tend to weigh less and the mothers tend to gained little weight during pregnancy.
+
+On the second graph there seemed to be a strong positive linear relationship between the weeks of gestation and the birthweight of the baby. Looking at the graph sex does not seem to effect the weight of the baby when the amount of weeks of gestation increases, but premature babies tend to have lower weeks of gestation and lower birth weight.
+
+From the regression model and the graph the variables gained, sex, premie, and weeks are signficant variables for determining the birthweight of the baby. I did not look at the interaction effect on categorical vairables of sex and premie on quantitative variables gained and weeks in determining the birthweight of the baby. Based on the graphs I would hypothesize that sex did not affect the variables of gained and weeks in determing the birthweight of a baby but I do believe that premie does intereact with gained and weeks in determiing the birthweight of a baby.
+
