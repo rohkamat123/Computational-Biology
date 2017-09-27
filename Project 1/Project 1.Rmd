@@ -1,0 +1,105 @@
+```{r global_options, include=FALSE}
+library(knitr)
+opts_chunk$set(fig.align="center", fig.height=6, fig.width=8)
+library(ggplot2)
+theme_set(theme_bw(base_size=12))
+library(dplyr)
+library(tidyr)
+```
+
+##Project 1
+Rohit Kamat rgk359
+
+###Instructions 
+
+For this project, I will be using the data set `Titanic` available in R and data sets `airlines`, `airports`, `flights`, `planes`, and `weather` in the `nycflights13` package.  
+```{r}
+Titanic
+library(nycflights13)
+head(flights)
+```
+
+###Problems
+
+**Problem 1: (5 pts)**
+The data set `Titanic` is not tidy. Suggest a different way to represent this data set that *would* be tidy. What columns would you need? What would the individual rows represent?
+
+So to make the data set tidy I would have a 'Sex','Age', 'Class', and 'Survived' columns. The observations for each column has to correspond to one persob .
+
+**Problem 2: (25 pts)**
+Combine the data sets `flights` and `airlines` such that all the information in the `flights` data set is retained. Using the combined data set and the full name of airline carriers, find the carrier with the longest and the shortest mean departure delay. Perform a statistical test to determine whether there is a significant difference in the departure delays between these two carriers, and interpret your findings.
+
+```{r}
+new.data<-left_join(flights,airlines)
+new.data %>% select(carrier, dep_delay) %>% group_by(carrier)%>% summarize(mean.dep.delay=mean(dep_delay,na.rm=TRUE)) %>% arrange(mean.dep.delay)->mean.data
+mean.data
+t.test(new.data$dep_delay[new.data$carrier=="US"],new.data$dep_delay[new.data$carrier=="F9"])
+
+```
+
+With a p-value less than .05, I reject the null hypothesis. I am 95% confident that the true difference in means between the departure delay of carrier "US" and "F9" is not equal to zero and the true mean difference lies within the interval of 12.02791 to 20.83833 minutes.
+
+**Problem 3: (40 pts)**
+
+**a. (30 points)**
+Using the `flights` data set, find the mean distance and mean air time in each month for flights from the three New York airports. Now make one plot that visualizes all this information at once. Your code should be well-commented and describe the various steps you take to create this figure. 
+
+```{r}
+#select the month, distance, air time, and origin of the data set
+flights %>% select(month,distance,air_time,origin)%>% 
+
+#group the data set by origin and month
+group_by(origin,month) %>% 
+
+# find the mean distance and mean air time of the graph  
+summarize(mean.dis= mean(distance, na.rm=TRUE), mean.air.time=mean(air_time,na.rm=TRUE))-> dis.time
+dis.time
+
+#graph the plot using ggplot, assigning the x-axis, y-axis, and the color for the extra dependent variable. I seperated the graph of each of the three airports
+dis.time %>% ggplot(aes(x=month, y=mean.dis,color=mean.air.time)) + geom_point() + facet_wrap(~origin) +xlab("Month") + ylab("Mean Distance") + ggtitle("Flight Plot") + theme(plot.title = element_text(hjust = 0.5)) 
+  
+```
+
+**b. (10 points)** Discuss the information (overarching trends, patterns, etc.) your final plot reveals. Be sure to include in your discussion the similarities/differences among the three New York airports and a clear, logical justification for why you selected the particular geom(s) used to represent this data. Please limit your full response to a maximum of 6 sentences.
+ 
+My final plot reveals that JFK had flights that had the highest mean distance, followed by EWR, while LGA had flights with the lowest mean distance. In terms of flights mean air time, JFK seemed to have the highest mean air time with the lightest shade of blue, followed by EWR, with LGA having the lowest mean air time.  From this plot I also notice that increase mean distance increases with higher mean air time. I used geom point and not a geom line for my ggplot, because month is a nominal variable not a continous variable so geom point would best explain the data between the different months. With mean distance having a wider range of values compared to mean air time, I used the mean distance as my y-axis, with the range of color for my mean air time. For EWR and JFK mean distance increases throughout the year, but LGA did not have a large change in altitude during the year. There was not a large increase or decrease for mean airtime throughout the year within the three airports.
+ 
+**Problem 4: (30 pts)**
+
+Using the 'weather' data set, is there a correlation between temperature and humidity when the dewpoint is above 70 and if so describe the trend of the correlation? Make a ggplot that visualizes the data set in a graph, discuss what your final plot reveals and why you used this type of plot?
+
+
+
+```{r}
+#focus on temperature and humidity in the weather data set
+weather %>% filter(dewp>70) %>% select(temp, humid) -> relation
+
+#perform a linear model
+relation_lm<-lm(humid ~ temp, relation)
+summary(relation_lm)
+
+#ggplot graph with month as x-axis, y-axis mean temperature, and the color as the mean humidity
+ggplot(relation, aes(x=temp, y=humid)) + geom_point() + geom_smooth(method="lm") + theme_gray() + xlab("Temperature in Fahrenheit") + ylab("Humidity") + ggtitle("Temperature vs Humidity") + theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+Using a linear model from the weather data, there was a strong negative linear relationship between the humidity and temperature when the dew point was above 70. As the temperature increase by one degree the humidity when down by 2.22 which was signisficant with p<.05. The correlation is displayed in the plot as one can tell from looking at the graph that as the temperature increases the humidity decreases. I use this type of plot because a scatterplot is used to compare a correlation between two variables.
+
+**Question 2**
+
+From the planes that were used, which engine was the most used by planes? How many planes used the most common engine? Create a ggplot to show the relationship between the two variables and explain why you use this type of plot.
+
+```{r}
+#Filter from the planes data to find the amount of planes that were usesd per engine
+planes %>% select(engine) %>% group_by(engine) %>% tally()-> new_planes
+new_planes
+
+#Use ggplot x-axis is longititude, y-axis is altitude, use a geom smooth to find the overall trend
+ggplot(new_planes, aes(engine, n, fill=engine))+ geom_col() + xlab("Type of Engine") + ylab("Number of Planes") + theme_grey() + ggtitle("Type of Engine vs. Number of Planes") +  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+```
+
+So after filtering the data based on the type of engine with number of planes that used the engine, Turbo-fan was the most common engine with 2750 planes using it. Then a plot was made using ggplot and geom_col() to show the total amount of planes from each engine. From the plot one can notice that Turbo Fan had the most number of planes with the highest column. 
